@@ -5,6 +5,8 @@ import { Common } from '../common';
 import DB from '../../database';
 import logger from '../../logger';
 
+const federationChangeAddresses = ['bc1qxvay4an52gcghxq5lavact7r6qe9l4laedsazz8fj2ee2cy47tlqff4aj4', '3EiAcrzq1cELXScc98KeCswGWZaPGceT1d'];
+
 class ElementsParser {
   private isRunning = false;
   private isUtxosUpdatingRunning = false;
@@ -119,26 +121,52 @@ class ElementsParser {
     }
 
     this.isUtxosUpdatingRunning = true;
-    const changeAddresses = ['bc1qxvay4an52gcghxq5lavact7r6qe9l4laedsazz8fj2ee2cy47tlqff4aj4', '3EiAcrzq1cELXScc98KeCswGWZaPGceT1d'];
 
     try {
       let auditProgress = await this.$getAuditProgress();
-
+      // If no peg in transaction was found in the database, return
       if (!auditProgress.lastBlockAudit) {
+        logger.debug(`No Federation UTXOs found in the database. Waiting for some to be confirmed before starting the Federation UTXOs audit.`);
+        this.isUtxosUpdatingRunning = false;
+        return;
+      }
+
+      const bitcoinBlocksToSync = await this.$getBitcoinBlocksToSync();
+      // If the bitcoin blockchain is not synced yet, return
+      if (bitcoinBlocksToSync > 1) {
+        logger.debug(`Bitcoin blockchain is not synced yet. ${bitcoinBlocksToSync} blocks remaining to sync before the Federation audit process can start.`);
         this.isUtxosUpdatingRunning = false;
         return;
       }
 
       auditProgress.lastBlockAudit++;
 
-      while (auditProgress.lastBlockAudit <= auditProgress.tip) {
-        const blockHash: IBitcoinApi.ChainTips = await bitcoinSecondClient.getBlockHash(auditProgress.lastBlockAudit);
-        const block: IBitcoinApi.Block = await bitcoinSecondClient.getBlock(blockHash, 2);
+      while (auditProgress.lastBlockAudit <= auditProgress.confirmedTip) {
+        // First, get the current UTXOs that need to be scanned in the block
         const utxos = await this.$getFederationUtxosToScan(auditProgress.lastBlockAudit);
-        const nbUtxos = utxos.length;
+        logger.debug(`Found ${utxos.length} Federation UTXOs to scan in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
+        await DB.query('START TRANSACTION;');
 
-        await this.$parseBitcoinBlock(block, utxos, changeAddresses);
-        logger.debug(`Watched for spending of ${nbUtxos} Federation UTXOs in block ${auditProgress.lastBlockAudit} / ${auditProgress.tip}`);
+        // Then, check if these UTXOs are still unspent as of the current block with gettxout
+        const utxosSpent = await this.$checkUtxosSpent(utxos, auditProgress.confirmedTip);
+        logger.debug(`${utxos.length - utxosSpent.length} / ${utxos.length} Federation UTXOs are still unspent as of tip, updated their lastblockupdate to ${auditProgress.confirmedTip}`);
+
+        // Then, parse the block to look for the spending of the UTXOs in utxosSpent
+        if (utxosSpent.length > 0) {
+          logger.debug(`Found ${utxosSpent.length} / ${utxos.length} Federation UTXOs spent as of tip: Looking for their spending in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
+
+          const blockHash: IBitcoinApi.ChainTips = await bitcoinSecondClient.getBlockHash(auditProgress.lastBlockAudit);
+          const block: IBitcoinApi.Block = await bitcoinSecondClient.getBlock(blockHash, 2);
+          const nbUtxos = utxosSpent.length;
+
+          await this.$parseBitcoinBlock(block, utxosSpent);
+          logger.debug(`Watched for spending of ${nbUtxos} Federation UTXOs in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
+        }
+
+        // Finally, update the lastblockupdate of the remaining UTXOs
+        const [minBlockUpdate] = await DB.query(`SELECT MIN(lastblockupdate) AS lastblockupdate FROM federation_txos WHERE unspent = 1`)
+        await this.$saveLastBlockAuditToDatabase(minBlockUpdate[0]['lastblockupdate']);
+        await DB.query('COMMIT;');
 
         auditProgress = await this.$getAuditProgress();
         auditProgress.lastBlockAudit++;
@@ -146,6 +174,7 @@ class ElementsParser {
 
       this.isUtxosUpdatingRunning = false;
     } catch (e) {
+      await DB.query('ROLLBACK;');
       this.isUtxosUpdatingRunning = false;
       throw new Error(e instanceof Error ? e.message : 'Error');
     } 
@@ -158,9 +187,23 @@ class ElementsParser {
     return rows as any[];
   }
 
-  protected async $parseBitcoinBlock(block: IBitcoinApi.Block, utxos: any[], changeAddresses: string[]) {
-    try {
-      await DB.query('START TRANSACTION;');
+  // Returns the UTXOs that are spent as of tip and need to be scanned
+  protected async $checkUtxosSpent(utxos: any[], confirmedTip: number): Promise<any[]> {
+    const utxosToScan: any[] = [];
+
+    for (const utxo of utxos) {
+      const result = await bitcoinSecondClient.getTxOut(utxo.txid, utxo.txindex, false);
+      if (!result) { // The UTXO is spent as of the tip, we need to look for its spending in blocks
+        utxosToScan.push(utxo);
+      } else { // The UTXO is still unspent as of the tip, we can update its lastblockupdate
+        await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [confirmedTip, utxo.txid, utxo.txindex]);
+      }
+    }
+    
+    return utxosToScan;
+  }
+
+  protected async $parseBitcoinBlock(block: IBitcoinApi.Block, utxos: any[]) {
       for (const tx of block.tx) {
         for (const input of tx.vin) {
           const txo = utxos.find(txo => txo.txid === input.txid && txo.txindex === input.vout);
@@ -173,7 +216,7 @@ class ElementsParser {
         }
         // Checking if an output is sent to a change address of the federation
         for (const output of tx.vout) {
-          if (output.scriptPubKey.address && changeAddresses.includes(output.scriptPubKey.address)) {
+          if (output.scriptPubKey.address && federationChangeAddresses.includes(output.scriptPubKey.address)) {
             // Check that the UTXO was not already added in the DB by previous scans
             const [rows_check] = await DB.query(`SELECT txid FROM federation_txos WHERE txid = ? AND txindex = ?`, [tx.txid, output.n]) as any[];
             if (rows_check.length === 0) {
@@ -196,61 +239,36 @@ class ElementsParser {
       for (const utxo of utxos) {
         await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [block.height, utxo.txid, utxo.txindex]);    
       }
-
-      const [minBlockUpdate] = await DB.query(`SELECT MIN(lastblockupdate) AS lastblockupdate FROM federation_txos WHERE unspent = 1`)
-      await this.$saveLastBlockAuditToDatabase(minBlockUpdate[0]['lastblockupdate']);
-
-      await DB.query('COMMIT;');
-    } catch (e) {
-      await DB.query('ROLLBACK;');
-      throw new Error(e instanceof Error ? e.message : 'Error');
-    }
   }
-
-  // // Check that recently added federation txos in the database are still part of the blockchain
-  // protected async $checkForReorgs(height: number) {
-  //   const [rows] = await DB.query(`SELECT txid, txindex FROM federation_txos WHERE blocknumber > ?`, [height]) as any[];
-  //   let reorgDetected = false;
-  //   for (const txo of rows) {
-  //     const tx = await bitcoinSecondClient.getRawTransaction(txo.txid, true);
-  //     if (!tx || !tx.vout[txo.txindex]) {
-  //       // The UTXO is not part of the blockchain anymore: remove it from the database
-  //       await DB.query(`DELETE FROM federation_txos WHERE txid = ? AND txindex = ?`, [txo.txid, txo.txindex]);
-  //       reorgDetected = true;
-  //       logger.debug(`WARNING: Federation UTXO ${txo.txid}:${txo.txindex} was removed from the database because it was not found in the blockchain, probably due to a reorg.`);
-  //     }
-  //   }
-  //   if (reorgDetected) {
-  //     // Update the last block audit
-  //     const [minBlockUpdate] = await DB.query(`SELECT MIN(lastblockupdate) AS lastblockupdate FROM federation_txos WHERE unspent = 1`)
-  //     await this.$saveLastBlockAuditToDatabase(minBlockUpdate[0]['lastblockupdate']);
-  //   } else {
-  //     logger.debug(`All Federation UTXOs from block ${height} are still part of the blockchain.`);
-  //   }
-  // }
 
   protected async $saveLastBlockAuditToDatabase(blockHeight: number) {
     const query = `UPDATE state SET number = ? WHERE name = 'last_bitcoin_block_audit'`;
     await DB.query(query, [blockHeight]);
   }
 
-    // Get the bitcoin block the audit process was last updated
-    protected async $getAuditProgress(): Promise<any> {
-      const lastblockaudit = await this.$getLastBlockAudit();
-      const result = await bitcoinSecondClient.getChainTips();
-      return {
-        lastBlockAudit: lastblockaudit,
-        tip: result[0].height - 6 // We don't want a block reorg to mess up with the Federation UTXOs (regularly check that recent txos are part of the blockchain?)
-      };
-    }
+  // Get the bitcoin block the audit process was last updated
+  protected async $getAuditProgress(): Promise<any> {
+    const lastblockaudit = await this.$getLastBlockAudit();
+    const result = await bitcoinSecondClient.getChainTips();
+    return {
+      lastBlockAudit: lastblockaudit,
+      confirmedTip: result[0].height - 2 // We don't want a block reorg to mess up with the Federation UTXOs (regularly check that recent txos are part of the blockchain?)
+    };
+  }
 
-  ///////////// DATA QUERY //////////////
+  // Get the bitcoin blocks remaining to be synced
+  protected async $getBitcoinBlocksToSync(): Promise<number> {
+    const result = await bitcoinSecondClient.getBlockchainInfo();
+    return result.blocks - result.headers;
+  }
 
   protected async $getLastBlockAudit(): Promise<number> {
     const query = `SELECT number FROM state WHERE name = 'last_bitcoin_block_audit'`;
     const [rows] = await DB.query(query);
     return rows[0]['number'];
   }
+
+    ///////////// DATA QUERY //////////////
 
   public async $getPegDataByMonth(): Promise<any> {
     const query = `SELECT SUM(amount) AS amount, DATE_FORMAT(FROM_UNIXTIME(datetime), '%Y-%m-01') AS date FROM elements_pegs GROUP BY DATE_FORMAT(FROM_UNIXTIME(datetime), '%Y%m')`;
