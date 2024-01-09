@@ -833,7 +833,6 @@ class DatabaseMigration {
       lastblockupdate int(11) unsigned NOT NULL,
       lasttimeupdate int(11) unsigned NOT NULL,
       PRIMARY KEY (txid, txindex), 
-      INDEX (bitcoinaddress),
       FOREIGN KEY (bitcoinaddress) REFERENCES federation_addresses (bitcoinaddress)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8;`;
   }

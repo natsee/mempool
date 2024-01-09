@@ -229,7 +229,28 @@ class ElementsParser {
   //   }
   // }
 
+  protected async $saveLastBlockAuditToDatabase(blockHeight: number) {
+    const query = `UPDATE state SET number = ? WHERE name = 'last_bitcoin_block_audit'`;
+    await DB.query(query, [blockHeight]);
+  }
+
+    // Get the bitcoin block the audit process was last updated
+    protected async $getAuditProgress(): Promise<any> {
+      const lastblockaudit = await this.$getLastBlockAudit();
+      const result = await bitcoinSecondClient.getChainTips();
+      return {
+        lastBlockAudit: lastblockaudit,
+        tip: result[0].height - 6 // We don't want a block reorg to mess up with the Federation UTXOs (regularly check that recent txos are part of the blockchain?)
+      };
+    }
+
   ///////////// DATA QUERY //////////////
+
+  protected async $getLastBlockAudit(): Promise<number> {
+    const query = `SELECT number FROM state WHERE name = 'last_bitcoin_block_audit'`;
+    const [rows] = await DB.query(query);
+    return rows[0]['number'];
+  }
 
   public async $getPegDataByMonth(): Promise<any> {
     const query = `SELECT SUM(amount) AS amount, DATE_FORMAT(FROM_UNIXTIME(datetime), '%Y-%m-01') AS date FROM elements_pegs GROUP BY DATE_FORMAT(FROM_UNIXTIME(datetime), '%Y%m')`;
@@ -237,50 +258,47 @@ class ElementsParser {
     return rows;
   }
 
-  // Get the bitcoin block the audit process was last updated
-  protected async $getAuditProgress(): Promise<any> {
-    const query = `SELECT number FROM state WHERE name = 'last_bitcoin_block_audit'`;
-    const [rows] = await DB.query(query);
-    const result = await bitcoinSecondClient.getChainTips();
-    return {
-      lastBlockAudit: rows[0]['number'],
-      tip: result[0].height - 6 // We don't want a block reorg to mess up with the Federation UTXOs (regularly check that recent txos are part of the blockchain?)
-    };
-  }
-
-  protected async $saveLastBlockAuditToDatabase(blockHeight: number) {
-    const query = `UPDATE state SET number = ? WHERE name = 'last_bitcoin_block_audit'`;
-    await DB.query(query, [blockHeight]);
-  }
-
   public async $getFederationReservesByMonth(): Promise<any> {
-    const query = `SELECT SUM(amount) AS absolute_amount, DATE_FORMAT(blocktime, '%Y-%m-01') AS date FROM federation_txos WHERE unspent = 1 GROUP BY DATE_FORMAT(blocktime, '%Y-%m')`;
+    const query = `
+    SELECT SUM(amount) AS amount, DATE_FORMAT(FROM_UNIXTIME(blocktime), '%Y-%m-01') AS date FROM federation_txos 
+    WHERE
+        (blocktime > UNIX_TIMESTAMP(LAST_DAY(FROM_UNIXTIME(blocktime) - INTERVAL 1 MONTH) + INTERVAL 1 DAY))
+      AND 
+        ((unspent = 1) OR (unspent = 0 AND lasttimeupdate > UNIX_TIMESTAMP(LAST_DAY(FROM_UNIXTIME(blocktime)) + INTERVAL 1 DAY)))
+    GROUP BY 
+        date;`;          
     const [rows] = await DB.query(query);
     return rows;
   }
 
-  // Get the current L-BTC pegs and the last block it was updated
+  // Get the current L-BTC pegs and the last Liquid block it was updated
   public async $getCurrentLbtcSupply(): Promise<any> {
-    const query = `SELECT SUM(amount) AS LBTC_supply, MAX(block) AS lastblockupdate FROM elements_pegs;`;
-    const [rows] = await DB.query(query);
-    return rows[0];
+    const [rows] = await DB.query(`SELECT SUM(amount) AS LBTC_supply FROM elements_pegs;`);
+    const lastblockupdate = await this.$getLatestBlockHeightFromDatabase();
+    return {
+      amount: rows[0]['LBTC_supply'],
+      lastBlockUpdate: lastblockupdate
+    };
   }
 
-  // Get the current reserves of the federation and the last block it was updated
-  public async $getFederationCurrentReserves(): Promise<any> {
-    const query = `SELECT SUM(amount) AS total_balance, MIN(lastblockupdate) AS lastblockupdate FROM federation_txos WHERE unspent = 1;`;
-    const [rows] = await DB.query(query);
-    return rows[0];
+  // Get the current reserves of the federation and the last Bitcoin block it was updated
+  public async $getCurrentFederationReserves(): Promise<any> {
+    const [rows] = await DB.query(`SELECT SUM(amount) AS total_balance FROM federation_txos WHERE unspent = 1;`);
+    const lastblockaudit = await this.$getLastBlockAudit();
+    return {
+      amount: rows[0]['total_balance'],
+      lastBlockUpdate: lastblockaudit
+    };
   }
 
   // Get the "rich list" of the federation addresses
   public async $getFederationTopAddresses(): Promise<any> {
-    const query = `SELECT bitcoinaddress, SUM(amount) AS balance, MAX(lastblockupdate) as lastblockupdate FROM federation_txos WHERE unspent = 1 GROUP BY bitcoinaddress ORDER BY balance DESC;`;
+    const query = `SELECT bitcoinaddress, SUM(amount) AS balance FROM federation_txos WHERE unspent = 1 GROUP BY bitcoinaddress ORDER BY balance DESC;`;
     const [rows] = await DB.query(query);
     return rows;
   }
 
-  // Get all the UTXOs held by the federation, sorted by date
+  // Get all the UTXOs held by the federation, most recent first
   public async $getFederationUtxos(): Promise<any> {
     const query = `SELECT * FROM federation_txos WHERE unspent = 1 ORDER BY blocktime DESC;`;
     const [rows] = await DB.query(query);
