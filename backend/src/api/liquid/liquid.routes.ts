@@ -15,7 +15,10 @@ class LiquidRoutes {
     
     if (config.DATABASE.ENABLED) {
       app
+        .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/pegs', this.$getElementsPegs)
         .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/pegs/month', this.$getElementsPegsByMonth)
+        .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/reserves', this.$getFederationReserves)
+        .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/reserves/month', this.$getFederationReservesByMonth)
         ;
     }
   }
@@ -64,6 +67,33 @@ class LiquidRoutes {
     try {
       const pegs = await elementsParser.$getPegDataByMonth();
       res.json(pegs);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : e);
+    }
+  }
+
+  private async $getFederationReservesByMonth(req: Request, res: Response) {
+    try {
+      const reserves = await elementsParser.$getFederationReservesByMonth();
+      res.json(reserves);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : e);
+    }
+  }
+
+  private async $getElementsPegs(req: Request, res: Response) {
+    try {
+      const currentSupply = await elementsParser.$getCurrentLbtcSupply();
+      res.json(currentSupply);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : e);
+    }
+  }
+
+  private async $getFederationReserves(req: Request, res: Response) {
+    try {
+      const currentReserves = await elementsParser.$getCurrentFederationReserves();
+      res.json(currentReserves);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
     }

@@ -76,6 +76,11 @@ export interface LiquidPegs {
   date: string;
 }
 
+export interface CurrentPegs {
+  amount: string;
+  lastBlockUpdate: number;
+}
+
 export interface ITranslators { [language: string]: string; }
 
 /**

@@ -47,6 +47,7 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   transactionsWeightPerSecondOptions: any;
   isLoadingWebSocket$: Observable<boolean>;
   liquidPegsMonth$: Observable<any>;
+  liquidReservesMonth$: Observable<any>;
   currencySubscription: Subscription;
   currency: string;
 
@@ -210,6 +211,23 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
             const labels = pegs.map(stats => stats.date);
             const series = pegs.map(stats => parseFloat(stats.amount) / 100000000);
             series.reduce((prev, curr, i) => series[i] = prev + curr, 0);
+            return {
+              series,
+              labels
+            };
+          }),
+          share(),
+        );
+      
+        this.liquidReservesMonth$ = combineLatest([
+          this.apiService.listLiquidReservesMonth$(),
+          this.apiService.liquidReserves$()
+        ])
+        .pipe(
+          map(([reserves, currentReserves]) => {
+            const labels = reserves.map(stats => stats.date);
+            const series = reserves.map(stats => parseFloat(stats.amount) / 100000000);
+            series[series.length - 1] = parseFloat(currentReserves.amount) / 100000000;
             return {
               series,
               labels

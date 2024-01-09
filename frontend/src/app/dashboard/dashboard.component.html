@@ -33,7 +33,9 @@
             </ng-container>
           </ng-template>
           <ng-template #liquidPegs>
-            <app-lbtc-pegs-graph [data]="liquidPegsMonth$ | async"></app-lbtc-pegs-graph>
+            <a href="" [routerLink]="['/audit' | relativeUrl]">
+              <app-lbtc-pegs-graph [pegData]="liquidPegsMonth$ | async" [reservesData]="liquidReservesMonth$ | async"></app-lbtc-pegs-graph>
+            </a>
           </ng-template>
         </div>
       </div>
@@ -249,7 +251,17 @@
     <div class="item">
       <h5 class="card-title" i18n="dashboard.lbtc-pegs-in-circulation">L-BTC in circulation</h5>
       <ng-container *ngIf="(liquidPegsMonth$ | async) as liquidPegsMonth; else loadingTransactions">
-        <p class="card-text">{{ liquidPegsMonth.series.slice(-1)[0] | number: '1.2-2' }} <span>L-BTC</span></p>
+        <p class="card-text">{{ liquidPegsMonth.series.slice(-1)[0] | number: '1.2-2' }} <span class="liquid-color">L-BTC</span></p>
+      </ng-container>
+    </div>
+    <div class="item">
+      <a class="title-link" href="" [routerLink]="['/audit' | relativeUrl]">
+        <h5 class="card-title card-title d-inline" i18n="dashboard.btc-reserves">BTC Reserves</h5>
+        <span>&nbsp;</span>
+        <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: #4a68b9"></fa-icon>
+      </a>
+      <ng-container *ngIf="(liquidReservesMonth$ | async) as liquidReservesMonth; else loadingTransactions">
+        <p class="card-text">{{ liquidReservesMonth.series.slice(-1)[0] | number: '1.2-2' }} <span class="bitcoin-color">BTC</span></p>
       </ng-container>
     </div>
   </div>
