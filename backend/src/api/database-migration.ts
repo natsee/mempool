@@ -810,7 +810,8 @@ class DatabaseMigration {
       bitcoinaddress varchar(100) NOT NULL,
       bitcointxid varchar(65) NOT NULL,
       bitcoinindex int(11) NOT NULL,
-      final_tx int(11) NOT NULL
+      final_tx int(11) NOT NULL,
+      PRIMARY KEY (txid, txindex), 
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8;`;
   }
 

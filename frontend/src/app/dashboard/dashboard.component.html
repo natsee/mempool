@@ -34,7 +34,7 @@
           </ng-template>
           <ng-template #liquidPegs>
             <a href="" [routerLink]="['/audit' | relativeUrl]">
-              <app-lbtc-pegs-graph [pegData]="liquidPegsMonth$ | async" [reservesData]="liquidReservesMonth$ | async"></app-lbtc-pegs-graph>
+              <app-lbtc-pegs-graph [pegData]="fullHistoryPeg$ | async" [reservesData]="fullHistoryReserves$ | async"></app-lbtc-pegs-graph>
             </a>
           </ng-template>
         </div>
@@ -250,8 +250,8 @@
   <div class="mempool-info-data">
     <div class="item">
       <h5 class="card-title" i18n="dashboard.lbtc-pegs-in-circulation">L-BTC in circulation</h5>
-      <ng-container *ngIf="(liquidPegsMonth$ | async) as liquidPegsMonth; else loadingTransactions">
-        <p class="card-text">{{ liquidPegsMonth.series.slice(-1)[0] | number: '1.2-2' }} <span class="liquid-color">L-BTC</span></p>
+      <ng-container *ngIf="(currentPeg$ | async) as currentPeg; else loadingTransactions">
+        <p i18n-ngbTooltip="liquid.last-elements-audit-block" [ngbTooltip]="'Circulating amount last updated at Liquid block ' + (currentPeg.lastBlockUpdate)" placement="top" class="card-text">{{ currentPeg.amount / 100000000 | number: '1.2-2' }} <span class="liquid-color">L-BTC</span></p>
       </ng-container>
     </div>
     <div class="item">
@@ -260,8 +260,8 @@
         <span>&nbsp;</span>
         <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="vertical-align: text-top; font-size: 13px; color: #4a68b9"></fa-icon>
       </a>
-      <ng-container *ngIf="(liquidReservesMonth$ | async) as liquidReservesMonth; else loadingTransactions">
-        <p class="card-text">{{ liquidReservesMonth.series.slice(-1)[0] | number: '1.2-2' }} <span class="bitcoin-color">BTC</span></p>
+      <ng-container *ngIf="(currentReserves$ | async) as currentReserves; else loadingTransactions">
+        <p i18n-ngbTooltip="liquid.last-bitcoin-audit-block" [ngbTooltip]="'Reserves amount last updated at Bitcoin block ' + (currentReserves.lastBlockUpdate)" placement="top" class="card-text">{{ currentReserves.amount / 100000000 | number: '1.2-2' }} <span class="bitcoin-color">BTC</span></p>
       </ng-container>
     </div>
   </div>

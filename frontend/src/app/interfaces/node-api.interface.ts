@@ -81,6 +81,13 @@ export interface CurrentPegs {
   lastBlockUpdate: number;
 }
 
+export interface AuditStatus {
+  bitcoinBlocks: number;
+  bitcoinHeaders: number;
+  lastBlockAudit: number;
+  isAuditSynced: boolean;
+}
+
 export interface ITranslators { [language: string]: string; }
 
 /**

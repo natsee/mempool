@@ -19,6 +19,7 @@ class LiquidRoutes {
         .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/pegs/month', this.$getElementsPegsByMonth)
         .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/reserves', this.$getFederationReserves)
         .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/reserves/month', this.$getFederationReservesByMonth)
+        .get(config.MEMPOOL.API_URL_PREFIX + 'liquid/reserves/status', this.$getFederationAuditStatus)
         ;
     }
   }
@@ -94,6 +95,15 @@ class LiquidRoutes {
     try {
       const currentReserves = await elementsParser.$getCurrentFederationReserves();
       res.json(currentReserves);
+    } catch (e) {
+      res.status(500).send(e instanceof Error ? e.message : e);
+    }
+  }
+
+  private async $getFederationAuditStatus(req: Request, res: Response) {
+    try {
+      const auditStatus = await elementsParser.$getAuditStatus();
+      res.json(auditStatus);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
     }
