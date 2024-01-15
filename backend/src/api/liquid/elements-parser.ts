@@ -339,7 +339,7 @@ class ElementsParser {
   }
 
   // Get all of the federation addresses, most balances first
-  public async $getFederationTopAddresses(): Promise<any> {
+  public async $getFederationAddresses(): Promise<any> {
     const query = `SELECT bitcoinaddress, SUM(amount) AS balance FROM federation_txos WHERE unspent = 1 GROUP BY bitcoinaddress ORDER BY balance DESC;`;
     const [rows] = await DB.query(query);
     return rows;
@@ -347,7 +347,7 @@ class ElementsParser {
 
   // Get all of the UTXOs held by the federation, most recent first
   public async $getFederationUtxos(): Promise<any> {
-    const query = `SELECT * FROM federation_txos WHERE unspent = 1 ORDER BY blocktime DESC;`;
+    const query = `SELECT txid, txindex, amount, blocknumber, blocktime FROM federation_txos WHERE unspent = 1 ORDER BY blocktime DESC;`;
     const [rows] = await DB.query(query);
     return rows;
   }
