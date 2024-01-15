@@ -146,10 +146,10 @@ class ElementsParser {
       auditProgress.lastBlockAudit++;
 
       while (auditProgress.lastBlockAudit <= auditProgress.confirmedTip) {
+        await DB.query('START TRANSACTION;');
         // First, get the current UTXOs that need to be scanned in the block
         const utxos = await this.$getFederationUtxosToScan(auditProgress.lastBlockAudit);
         logger.debug(`Found ${utxos.length} Federation UTXOs to scan in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
-        await DB.query('START TRANSACTION;');
 
         // The fast way: check if these UTXOs are still unspent as of the current block with gettxout
         let utxosToParse: any[];
