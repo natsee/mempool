@@ -318,9 +318,11 @@ class ElementsParser {
   public async $getCurrentLbtcSupply(): Promise<any> {
     const [rows] = await DB.query(`SELECT SUM(amount) AS LBTC_supply FROM elements_pegs;`);
     const lastblockupdate = await this.$getLatestBlockHeightFromDatabase();
+    const hash = await bitcoinClient.getBlockHash(lastblockupdate);
     return {
       amount: rows[0]['LBTC_supply'],
-      lastBlockUpdate: lastblockupdate
+      lastBlockUpdate: lastblockupdate,
+      hash: hash
     };
   }
 
@@ -328,20 +330,22 @@ class ElementsParser {
   public async $getCurrentFederationReserves(): Promise<any> {
     const [rows] = await DB.query(`SELECT SUM(amount) AS total_balance FROM federation_txos WHERE unspent = 1;`);
     const lastblockaudit = await this.$getLastBlockAudit();
+    const hash = await bitcoinSecondClient.getBlockHash(lastblockaudit);
     return {
       amount: rows[0]['total_balance'],
-      lastBlockUpdate: lastblockaudit
+      lastBlockUpdate: lastblockaudit,
+      hash: hash
     };
   }
 
-  // Get the "rich list" of the federation addresses
+  // Get all of the federation addresses, most balances first
   public async $getFederationTopAddresses(): Promise<any> {
     const query = `SELECT bitcoinaddress, SUM(amount) AS balance FROM federation_txos WHERE unspent = 1 GROUP BY bitcoinaddress ORDER BY balance DESC;`;
     const [rows] = await DB.query(query);
     return rows;
   }
 
-  // Get all the UTXOs held by the federation, most recent first
+  // Get all of the UTXOs held by the federation, most recent first
   public async $getFederationUtxos(): Promise<any> {
     const query = `SELECT * FROM federation_txos WHERE unspent = 1 ORDER BY blocktime DESC;`;
     const [rows] = await DB.query(query);

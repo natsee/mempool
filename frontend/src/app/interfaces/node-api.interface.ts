@@ -79,6 +79,7 @@ export interface LiquidPegs {
 export interface CurrentPegs {
   amount: string;
   lastBlockUpdate: number;
+  hash: string;
 }
 
 export interface AuditStatus {
