@@ -138,7 +138,7 @@ class ElementsParser {
       const bitcoinBlocksToSync = await this.$getBitcoinBlockchainState();
       // If the bitcoin blockchain is not synced yet, return
       if (bitcoinBlocksToSync.bitcoinHeaders > bitcoinBlocksToSync.bitcoinBlocks + 1) {
-        logger.debug(`Bitcoin blockchain is not synced yet. ${bitcoinBlocksToSync} blocks remaining to sync before the Federation audit process can start.`);
+        logger.debug(`Bitcoin client is not synced yet. ${bitcoinBlocksToSync.bitcoinHeaders - bitcoinBlocksToSync.bitcoinBlocks} blocks remaining to sync before the Federation audit process can start.`);
         this.isUtxosUpdatingRunning = false;
         return;
       }

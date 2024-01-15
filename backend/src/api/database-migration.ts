@@ -564,6 +564,7 @@ class DatabaseMigration {
       await this.$executeQuery(`INSERT INTO federation_addresses (bitcoinaddress) VALUES ('bc1qxvay4an52gcghxq5lavact7r6qe9l4laedsazz8fj2ee2cy47tlqff4aj4')`); // Federation change address
       await this.$executeQuery(`INSERT INTO federation_addresses (bitcoinaddress) VALUES ('3EiAcrzq1cELXScc98KeCswGWZaPGceT1d')`); // Federation change address
       await this.$executeQuery(this.getCreateFederationTxosTableQuery(), await this.$checkIfTableExists('federation_txos'));
+      await this.$executeQuery(`INSERT INTO state VALUES('last_bitcoin_block_audit', 0, NULL);`);
       await this.updateToSchemaVersion(67);
     }
   }
@@ -643,7 +644,6 @@ class DatabaseMigration {
     // Set initial values
     await this.$executeQuery(`INSERT INTO state VALUES('schema_version', 0, NULL);`);
     await this.$executeQuery(`INSERT INTO state VALUES('last_elements_block', 0, NULL);`);
-    await this.$executeQuery(`INSERT INTO state VALUES('last_bitcoin_block_audit', 0, NULL);`);
   }
 
   /**
