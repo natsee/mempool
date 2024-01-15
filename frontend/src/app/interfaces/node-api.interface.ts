@@ -82,6 +82,19 @@ export interface CurrentPegs {
   hash: string;
 }
 
+export interface FederationAddress { 
+  address: string;
+  balance: string;
+}
+
+export interface FederationUtxo {
+  txId: string;
+  txIndex: number;
+  amount: number;
+  blockNumber: number;
+  blockTime: number;
+}
+
 export interface AuditStatus {
   bitcoinBlocks: number;
   bitcoinHeaders: number;
