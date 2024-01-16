@@ -146,33 +146,33 @@ class ElementsParser {
       auditProgress.lastBlockAudit++;
 
       while (auditProgress.lastBlockAudit <= auditProgress.confirmedTip) {
-        await DB.query('START TRANSACTION;');
         // First, get the current UTXOs that need to be scanned in the block
         const utxos = await this.$getFederationUtxosToScan(auditProgress.lastBlockAudit);
         logger.debug(`Found ${utxos.length} Federation UTXOs to scan in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
 
         // The fast way: check if these UTXOs are still unspent as of the current block with gettxout
-        let utxosToParse: any[];
+        let spentAsTip: any[];
+        let unspentAsTip: any[];
         if (auditProgress.confirmedTip - auditProgress.lastBlockAudit <= 150) { // If the audit status is not too far in the past, we can use gettxout (fast way)
-          utxosToParse = await this.$getUtxosToParse(utxos, auditProgress.confirmedTip);
-          const message = `${utxos.length - utxosToParse.length} / ${utxos.length} Federation UTXOs are unspent as of tip`;
-          const additionalInfo = (utxos.length - utxosToParse.length > 0) ? `, updated their lastblockupdate to ${auditProgress.confirmedTip}` : '';
-          logger.debug(message + additionalInfo);
+          const utxosToParse = await this.$getFederationUtxosToParse(utxos);
+          spentAsTip = utxosToParse.spentAsTip;
+          unspentAsTip = utxosToParse.unspentAsTip;
+          logger.debug(`${unspentAsTip.length} / ${utxos.length} Federation UTXOs are unspent as of tip`);
         } else { // If the audit status is too far in the past, it is useless to look for still unspent txos since they will all be spent as of the tip
-          utxosToParse = utxos;
+          spentAsTip = utxos;
+          unspentAsTip = [];
         }
 
         // The slow way: parse the block to look for the spending tx
-        if (utxosToParse.length > 0) {
-          logger.debug(`${utxosToParse.length} / ${utxos.length} Federation UTXOs are spent as of tip: Looking for their spending in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
+        logger.debug(`${spentAsTip.length} / ${utxos.length} Federation UTXOs are spent as of tip`);
 
-          const blockHash: IBitcoinApi.ChainTips = await bitcoinSecondClient.getBlockHash(auditProgress.lastBlockAudit);
-          const block: IBitcoinApi.Block = await bitcoinSecondClient.getBlock(blockHash, 2);
-          const nbUtxos = utxosToParse.length;
-
-          await this.$parseBitcoinBlock(block, utxosToParse);
-          logger.debug(`Watched for spending of ${nbUtxos} Federation UTXOs in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
-        }
+        const blockHash: IBitcoinApi.ChainTips = await bitcoinSecondClient.getBlockHash(auditProgress.lastBlockAudit);
+        const block: IBitcoinApi.Block = await bitcoinSecondClient.getBlock(blockHash, 2);
+        const nbUtxos = spentAsTip.length;
+        await DB.query('START TRANSACTION;');
+        await this.$parseBitcoinBlock(block, spentAsTip, unspentAsTip, auditProgress.confirmedTip);
+        await DB.query(`COMMIT;`);
+        logger.debug(`Watched for spending of ${nbUtxos} Federation UTXOs in block ${auditProgress.lastBlockAudit} / ${auditProgress.confirmedTip}`);
 
         // Finally, update the lastblockupdate of the remaining UTXOs and save to the database
         const [minBlockUpdate] = await DB.query(`SELECT MIN(lastblockupdate) AS lastblockupdate FROM federation_txos WHERE unspent = 1`)
@@ -180,7 +180,6 @@ class ElementsParser {
 
         auditProgress = await this.$getAuditProgress();
         auditProgress.lastBlockAudit++;
-        await DB.query('COMMIT;');
       }
 
       this.isUtxosUpdatingRunning = false;
@@ -199,29 +198,31 @@ class ElementsParser {
   }
 
   // Returns the UTXOs that are spent as of tip and need to be scanned
-  protected async $getUtxosToParse(utxos: any[], confirmedTip: number): Promise<any[]> {
-    const utxosToScan: any[] = [];
+  protected async $getFederationUtxosToParse(utxos: any[]): Promise<any> {
+    const spentAsTip: any[] = [];
+    const unspentAsTip: any[] = [];
 
     for (const utxo of utxos) {
       const result = await bitcoinSecondClient.getTxOut(utxo.txid, utxo.txindex, false);
-      if (!result) { // The UTXO is spent as of the tip, we need to look for its spending in blocks
-        utxosToScan.push(utxo);
-      } else { // The UTXO is still unspent as of the tip, we can update its lastblockupdate
-        await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [confirmedTip, utxo.txid, utxo.txindex]);
+      if (!result) {
+        spentAsTip.push(utxo);
+      } else {
+        unspentAsTip.push(utxo);
+        // await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [confirmedTip, utxo.txid, utxo.txindex]);
       }
     }
     
-    return utxosToScan;
+    return {spentAsTip, unspentAsTip};
   }
 
-  protected async $parseBitcoinBlock(block: IBitcoinApi.Block, utxos: any[]) {
+  protected async $parseBitcoinBlock(block: IBitcoinApi.Block, spentAsTip: any[], unspentAsTip: any[], confirmedTip: number) {
       for (const tx of block.tx) {
         for (const input of tx.vin) {
-          const txo = utxos.find(txo => txo.txid === input.txid && txo.txindex === input.vout);
+          const txo = spentAsTip.find(txo => txo.txid === input.txid && txo.txindex === input.vout);
           if (txo) {
             await DB.query(`UPDATE federation_txos SET unspent = 0, lastblockupdate = ?, lasttimeupdate = ? WHERE txid = ? AND txindex = ?`, [block.height, block.time, txo.txid, txo.txindex]);
             // Remove the TXO from the utxo array
-            utxos.splice(utxos.indexOf(txo), 1);
+            spentAsTip.splice(spentAsTip.indexOf(txo), 1);
             logger.debug(`Federation UTXO ${txo.txid}:${txo.txindex} (${txo.amount} sats) was spent in block ${block.height}.`);
           }
         }
@@ -235,7 +236,7 @@ class ElementsParser {
               const params_utxos: (string | number)[] = [tx.txid, output.n, output.scriptPubKey.address, output.value * 100000000, block.height, block.time, 1, block.height, 0];
               await DB.query(query_utxos, params_utxos);
               // Add the UTXO to the utxo array
-              utxos.push({
+              spentAsTip.push({
                 txid: tx.txid,
                 txindex: output.n,
                 bitcoinaddress: output.scriptPubKey.address,
@@ -247,8 +248,12 @@ class ElementsParser {
         }
       }
 
-      for (const utxo of utxos) {
+      for (const utxo of spentAsTip) {
         await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [block.height, utxo.txid, utxo.txindex]);    
+      }
+
+      for (const utxo of unspentAsTip) {
+        await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [confirmedTip, utxo.txid, utxo.txindex]);
       }
   }
 
