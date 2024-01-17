@@ -217,6 +217,7 @@ class ElementsParser {
 
   protected async $parseBitcoinBlock(block: IBitcoinApi.Block, spentAsTip: any[], unspentAsTip: any[], confirmedTip: number) {
       for (const tx of block.tx) {
+        // Check if the Federation UTXOs that was spent as of tip are spent in this block
         for (const input of tx.vin) {
           const txo = spentAsTip.find(txo => txo.txid === input.txid && txo.txindex === input.vout);
           if (txo) {
@@ -226,7 +227,7 @@ class ElementsParser {
             logger.debug(`Federation UTXO ${txo.txid}:${txo.txindex} (${txo.amount} sats) was spent in block ${block.height}.`);
           }
         }
-        // Checking if an output is sent to a change address of the federation
+        // Check if an output is sent to a change address of the federation
         for (const output of tx.vout) {
           if (output.scriptPubKey.address && federationChangeAddresses.includes(output.scriptPubKey.address)) {
             // Check that the UTXO was not already added in the DB by previous scans
