@@ -216,46 +216,46 @@ class ElementsParser {
   }
 
   protected async $parseBitcoinBlock(block: IBitcoinApi.Block, spentAsTip: any[], unspentAsTip: any[], confirmedTip: number) {
-      for (const tx of block.tx) {
-        // Check if the Federation UTXOs that was spent as of tip are spent in this block
-        for (const input of tx.vin) {
-          const txo = spentAsTip.find(txo => txo.txid === input.txid && txo.txindex === input.vout);
-          if (txo) {
-            await DB.query(`UPDATE federation_txos SET unspent = 0, lastblockupdate = ?, lasttimeupdate = ? WHERE txid = ? AND txindex = ?`, [block.height, block.time, txo.txid, txo.txindex]);
-            // Remove the TXO from the utxo array
-            spentAsTip.splice(spentAsTip.indexOf(txo), 1);
-            logger.debug(`Federation UTXO ${txo.txid}:${txo.txindex} (${txo.amount} sats) was spent in block ${block.height}.`);
-          }
-        }
-        // Check if an output is sent to a change address of the federation
-        for (const output of tx.vout) {
-          if (output.scriptPubKey.address && federationChangeAddresses.includes(output.scriptPubKey.address)) {
-            // Check that the UTXO was not already added in the DB by previous scans
-            const [rows_check] = await DB.query(`SELECT txid FROM federation_txos WHERE txid = ? AND txindex = ?`, [tx.txid, output.n]) as any[];
-            if (rows_check.length === 0) {
-              const query_utxos = `INSERT INTO federation_txos (txid, txindex, bitcoinaddress, amount, blocknumber, blocktime, unspent, lastblockupdate, lasttimeupdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-              const params_utxos: (string | number)[] = [tx.txid, output.n, output.scriptPubKey.address, output.value * 100000000, block.height, block.time, 1, block.height, 0];
-              await DB.query(query_utxos, params_utxos);
-              // Add the UTXO to the utxo array
-              spentAsTip.push({
-                txid: tx.txid,
-                txindex: output.n,
-                bitcoinaddress: output.scriptPubKey.address,
-                amount: output.value * 100000000
-              });
-              logger.debug(`Added new Federation UTXO ${tx.txid}:${output.n} of ${output.value * 100000000} sats belonging to ${output.scriptPubKey.address} (Federation change address).`);
-            }
-          }
+    for (const tx of block.tx) {
+      // Check if the Federation UTXOs that was spent as of tip are spent in this block
+      for (const input of tx.vin) {
+        const txo = spentAsTip.find(txo => txo.txid === input.txid && txo.txindex === input.vout);
+        if (txo) {
+          await DB.query(`UPDATE federation_txos SET unspent = 0, lastblockupdate = ?, lasttimeupdate = ? WHERE txid = ? AND txindex = ?`, [block.height, block.time, txo.txid, txo.txindex]);
+          // Remove the TXO from the utxo array
+          spentAsTip.splice(spentAsTip.indexOf(txo), 1);
+          logger.debug(`Federation UTXO ${txo.txid}:${txo.txindex} (${txo.amount} sats) was spent in block ${block.height}.`);
         }
       }
-
-      for (const utxo of spentAsTip) {
-        await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [block.height, utxo.txid, utxo.txindex]);    
+      // Check if an output is sent to a change address of the federation
+      for (const output of tx.vout) {
+        if (output.scriptPubKey.address && federationChangeAddresses.includes(output.scriptPubKey.address)) {
+          // Check that the UTXO was not already added in the DB by previous scans
+          const [rows_check] = await DB.query(`SELECT txid FROM federation_txos WHERE txid = ? AND txindex = ?`, [tx.txid, output.n]) as any[];
+          if (rows_check.length === 0) {
+            const query_utxos = `INSERT INTO federation_txos (txid, txindex, bitcoinaddress, amount, blocknumber, blocktime, unspent, lastblockupdate, lasttimeupdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            const params_utxos: (string | number)[] = [tx.txid, output.n, output.scriptPubKey.address, output.value * 100000000, block.height, block.time, 1, block.height, 0];
+            await DB.query(query_utxos, params_utxos);
+            // Add the UTXO to the utxo array
+            spentAsTip.push({
+              txid: tx.txid,
+              txindex: output.n,
+              bitcoinaddress: output.scriptPubKey.address,
+              amount: output.value * 100000000
+            });
+            logger.debug(`Added new Federation UTXO ${tx.txid}:${output.n} of ${output.value * 100000000} sats belonging to ${output.scriptPubKey.address} (Federation change address).`);
+          }
+        }
       }
+    }
 
-      for (const utxo of unspentAsTip) {
-        await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [confirmedTip, utxo.txid, utxo.txindex]);
-      }
+    for (const utxo of spentAsTip) {
+      await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [block.height, utxo.txid, utxo.txindex]);    
+    }
+
+    for (const utxo of unspentAsTip) {
+      await DB.query(`UPDATE federation_txos SET lastblockupdate = ? WHERE txid = ? AND txindex = ?`, [confirmedTip, utxo.txid, utxo.txindex]);
+    }
   }
 
   protected async $saveLastBlockAuditToDatabase(blockHeight: number) {
