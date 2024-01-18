@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { SeoService } from '../../../services/seo.service';
 import { WebsocketService } from '../../../services/websocket.service';
 import { StateService } from '../../../services/state.service';
-import { Observable, concat, delay, filter, map, share, switchMap, tap } from 'rxjs';
+import { Observable, concat, delay, filter, share, skip, switchMap, tap } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
 import { AuditStatus, CurrentPegs, FederationAddress, FederationUtxo } from '../../../interfaces/node-api.interface';
 
@@ -35,8 +35,9 @@ export class ReservesAuditDashboardComponent implements OnInit {
     this.websocketService.want(['blocks', 'mempool-blocks']);
 
     this.auditStatus$ = concat(
-      this.apiService.federationAuditSynced$(),
+      this.apiService.federationAuditSynced$().pipe(share()),
       this.stateService.blocks$.pipe(
+        skip(1),
         delay(2000),
         switchMap(() => this.apiService.federationAuditSynced$()),
         share()

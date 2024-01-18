@@ -88,11 +88,12 @@ export interface FederationAddress {
 }
 
 export interface FederationUtxo {
-  txId: string;
-  txIndex: number;
+  txid: string;
+  txindex: number;
+  bitcoinaddress: string;
   amount: number;
-  blockNumber: number;
-  blockTime: number;
+  blocknumber: number;
+  blocktime: number;
 }
 
 export interface AuditStatus {

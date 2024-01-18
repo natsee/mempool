@@ -1,6 +1,6 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, OnDestroy, OnInit } from '@angular/core';
 import { combineLatest, concat, EMPTY, interval, merge, Observable, of, Subscription } from 'rxjs';
-import { catchError, delay, filter, map, mergeMap, scan, share, startWith, switchMap, tap } from 'rxjs/operators';
+import { catchError, delay, filter, map, mergeMap, scan, share, skip, startWith, switchMap, tap } from 'rxjs/operators';
 import { AuditStatus, BlockExtended, CurrentPegs, OptimizedMempoolStats } from '../interfaces/node-api.interface';
 import { MempoolInfo, TransactionStripped, ReplacementInfo } from '../interfaces/websocket.interface';
 import { ApiService } from '../services/api.service';
@@ -249,8 +249,9 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
       ////////// BTC Reserves historical data //////////
       this.auditStatus$ = concat(
-        this.apiService.federationAuditSynced$(),
+        this.apiService.federationAuditSynced$().pipe(share()),
         this.stateService.blocks$.pipe(
+          skip(1),
           delay(2000),
           switchMap(() => this.apiService.federationAuditSynced$()),
           share()

@@ -353,7 +353,7 @@ class ElementsParser {
 
   // Get all of the UTXOs held by the federation, most recent first
   public async $getFederationUtxos(): Promise<any> {
-    const query = `SELECT txid, txindex, amount, blocknumber, blocktime FROM federation_txos WHERE unspent = 1 ORDER BY blocktime DESC;`;
+    const query = `SELECT txid, txindex, bitcoinaddress, amount, blocknumber, blocktime FROM federation_txos WHERE unspent = 1 ORDER BY blocktime DESC;`;
     const [rows] = await DB.query(query);
     return rows;
   }
