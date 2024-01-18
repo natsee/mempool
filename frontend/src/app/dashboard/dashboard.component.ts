@@ -1,7 +1,7 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, OnDestroy, OnInit } from '@angular/core';
-import { combineLatest, concat, merge, Observable, of, Subscription } from 'rxjs';
-import { catchError, delay, filter, map, scan, share, switchMap, tap } from 'rxjs/operators';
-import { BlockExtended, OptimizedMempoolStats } from '../interfaces/node-api.interface';
+import { combineLatest, concat, EMPTY, interval, merge, Observable, of, Subscription } from 'rxjs';
+import { catchError, delay, filter, map, mergeMap, scan, share, startWith, switchMap, tap } from 'rxjs/operators';
+import { AuditStatus, BlockExtended, CurrentPegs, OptimizedMempoolStats } from '../interfaces/node-api.interface';
 import { MempoolInfo, TransactionStripped, ReplacementInfo } from '../interfaces/websocket.interface';
 import { ApiService } from '../services/api.service';
 import { StateService } from '../services/state.service';
@@ -47,11 +47,11 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
   transactionsWeightPerSecondOptions: any;
   isLoadingWebSocket$: Observable<boolean>;
   liquidPegsMonth$: Observable<any>;
-  currentPeg$: Observable<any>;
-  fullHistoryPeg$: Observable<any>;
+  currentPeg$: Observable<CurrentPegs>;
+  auditStatus$: Observable<AuditStatus>;
   liquidReservesMonth$: Observable<any>;
-  currentReserves$: Observable<any>;
-  fullHistoryReserves$: Observable<any>;
+  currentReserves$: Observable<CurrentPegs>;
+  fullHistory$: Observable<any>;
   currencySubscription: Subscription;
   currency: string;
   private lastPegBlockUpdate: number = 0;
@@ -212,14 +212,14 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
 
     if (this.stateService.network === 'liquid' || this.stateService.network === 'liquidtestnet') {
       ////////// Pegs historical data //////////
-      this.liquidPegsMonth$ = this.apiService.listLiquidPegsMonth$()
+      this.liquidPegsMonth$ = interval(24 * 60 * 60 * 1000)
         .pipe(
+          startWith(0),
+          switchMap(() => this.apiService.listLiquidPegsMonth$()),
           map((pegs) => {
-            const labels = pegs.map(stats => stats.date);
-            const series = pegs.map(stats => parseFloat(stats.amount) / 100000000);
-            series.reduce((prev, curr, i) => series[i] = prev + curr, 0);
-            // Remove the last element (the current peg) to be added later
-            series.pop();
+            const labels = pegs.map((stats) => stats.date);
+            const series = pegs.map((stats) => parseFloat(stats.amount) / 100000000);
+            series.reduce((prev, curr, i) => (series[i] = prev + curr), 0);
             return {
               series,
               labels
@@ -235,78 +235,78 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
           .pipe(
             tap((currentPeg) => this.lastPegBlockUpdate = currentPeg.lastBlockUpdate)
           ),
-        // Or when we receive a newer block, we wait 1 second so that the backend updates and we fetch the current peg
+        // Or when we receive a newer block, we wait 2 seconds so that the backend updates and we fetch the current peg
         this.stateService.blocks$
           .pipe(
-            delay(1000),
+            delay(2000),
             switchMap((_) => this.apiService.liquidPegs$()),
-            filter((currentPeg) => currentPeg.lastBlockUpdate > this.lastPegBlockUpdate)
+            filter((currentPeg) => currentPeg.lastBlockUpdate > this.lastPegBlockUpdate),
+            tap((currentPeg) => this.lastPegBlockUpdate = currentPeg.lastBlockUpdate)
           )
-      )
-        .pipe(
-          map((currentPeg) => {
-            this.lastPegBlockUpdate = currentPeg.lastBlockUpdate; 
-            return currentPeg; 
-          }),
-          share(),
-        );
-
-      this.fullHistoryPeg$ = combineLatest([this.liquidPegsMonth$, this.currentPeg$])
-        .pipe(
-          map(([liquidPegs, currentPeg]) => {
-            // Add the current peg to the end of the month series
-            liquidPegs.series.push(parseFloat(currentPeg.amount) / 100000000);
-            return liquidPegs;
-          })
-        );
+      ).pipe(
+        share()
+      );
 
       ////////// BTC Reserves historical data //////////
-      this.liquidReservesMonth$ = this.apiService.federationAuditSynced$()
-        .pipe(
-          filter(auditStatus => auditStatus.isAuditSynced === true),
-          switchMap(_ => this.apiService.listLiquidReservesMonth$()),
-          map(reserves => {
-            const labels = reserves.map(stats => stats.date);
-            const series = reserves.map(stats => parseFloat(stats.amount) / 100000000);
-            // Remove the last element (the current reserves) to be added later
-            series.pop();
-            return {
-              series,
-              labels
-            };
-          }),
+      this.auditStatus$ = concat(
+        this.apiService.federationAuditSynced$(),
+        this.stateService.blocks$.pipe(
+          delay(2000),
+          switchMap(() => this.apiService.federationAuditSynced$()),
           share()
-        );
+        )
+      );
+      
+      this.liquidReservesMonth$ = interval(24 * 60 * 60 * 1000).pipe(
+        startWith(0),
+        mergeMap(() => this.apiService.federationAuditSynced$()),
+        switchMap((auditStatus) => {
+          return auditStatus.isAuditSynced ? this.apiService.listLiquidReservesMonth$() : EMPTY;
+        }),
+        map(reserves => {
+          const labels = reserves.map(stats => stats.date);
+          const series = reserves.map(stats => parseFloat(stats.amount) / 100000000);
+          return {
+            series,
+            labels
+          };
+        }),
+        share()
+      );
 
-      this.currentReserves$ = this.apiService.federationAuditSynced$()
-        .pipe(
-          filter(auditStatus => auditStatus.isAuditSynced === true),
-          switchMap(_ =>
-            concat(
-              this.apiService.liquidReserves$()
-                .pipe(
-                  tap((currentReserves) => this.lastReservesBlockUpdate = currentReserves.lastBlockUpdate)
-                ),
-              this.stateService.blocks$
-                .pipe(
-                  delay(1000),
-                  switchMap(_ => this.apiService.liquidReserves$()),
-                  filter((currentReserves) => currentReserves.lastBlockUpdate > this.lastReservesBlockUpdate)
-                )
-            )),
-          map((currentReserves) => {
-            this.lastReservesBlockUpdate = currentReserves.lastBlockUpdate
-            return currentReserves;
-          }),
-          share(),
-        );
+      this.currentReserves$ = this.auditStatus$.pipe(
+        filter(auditStatus => auditStatus.isAuditSynced === true),
+        switchMap(_ =>
+          this.apiService.liquidReserves$().pipe(
+            filter((currentReserves) => currentReserves.lastBlockUpdate > this.lastReservesBlockUpdate),
+            tap((currentReserves) => {
+              this.lastReservesBlockUpdate = currentReserves.lastBlockUpdate;
+            })
+          )
+        ),
+        share()
+      );
 
-      this.fullHistoryReserves$ = combineLatest([this.liquidReservesMonth$, this.currentReserves$])
+      this.fullHistory$ = combineLatest([this.liquidPegsMonth$, this.currentPeg$, this.liquidReservesMonth$, this.currentReserves$])
         .pipe(
-          map(([liquidReserves, currentReserves]) => {
-            // Add the current reserves to the end of the month series
-            liquidReserves.series.push(parseFloat(currentReserves.amount) / 100000000);
-            return liquidReserves;
+          map(([liquidPegs, currentPeg, liquidReserves, currentReserves]) => {
+            liquidPegs.series[liquidPegs.series.length - 1] = parseFloat(currentPeg.amount) / 100000000;
+
+            if (liquidPegs.series.length === liquidReserves?.series.length) {
+              liquidReserves.series[liquidReserves.series.length - 1] = parseFloat(currentReserves?.amount) / 100000000;
+            } else if (liquidPegs.series.length === liquidReserves?.series.length + 1) {
+              liquidReserves.series.push(parseFloat(currentReserves?.amount) / 100000000);
+            } else {
+              liquidReserves = {
+                series: [],
+                labels: []
+              };
+            }
+
+            return {
+              liquidPegs,
+              liquidReserves
+            };
           })
         );
     }

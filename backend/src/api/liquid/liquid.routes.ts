@@ -71,6 +71,9 @@ class LiquidRoutes {
   private async $getElementsPegsByMonth(req: Request, res: Response) {
     try {
       const pegs = await elementsParser.$getPegDataByMonth();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60 * 24).toUTCString());
       res.json(pegs);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -80,6 +83,9 @@ class LiquidRoutes {
   private async $getFederationReservesByMonth(req: Request, res: Response) {
     try {
       const reserves = await elementsParser.$getFederationReservesByMonth();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60 * 24).toUTCString());
       res.json(reserves);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -89,6 +95,9 @@ class LiquidRoutes {
   private async $getElementsPegs(req: Request, res: Response) {
     try {
       const currentSupply = await elementsParser.$getCurrentLbtcSupply();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 30).toUTCString());
       res.json(currentSupply);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -98,6 +107,9 @@ class LiquidRoutes {
   private async $getFederationReserves(req: Request, res: Response) {
     try {
       const currentReserves = await elementsParser.$getCurrentFederationReserves();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 30).toUTCString());
       res.json(currentReserves);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -107,6 +119,9 @@ class LiquidRoutes {
   private async $getFederationAuditStatus(req: Request, res: Response) {
     try {
       const auditStatus = await elementsParser.$getAuditStatus();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 30).toUTCString());
       res.json(auditStatus);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -116,6 +131,9 @@ class LiquidRoutes {
   private async $getFederationAddresses(req: Request, res: Response) {
     try {
       const federationAddresses = await elementsParser.$getFederationAddresses();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 30).toUTCString());
       res.json(federationAddresses);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -125,6 +143,9 @@ class LiquidRoutes {
   private async $getFederationAddressesOneMonthAgo(req: Request, res: Response) {
     try {
       const federationAddresses = await elementsParser.$getFederationAddressesOneMonthAgo();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60 * 24).toUTCString());
       res.json(federationAddresses);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -134,6 +155,9 @@ class LiquidRoutes {
   private async $getFederationUtxos(req: Request, res: Response) {
     try {
       const federationUtxos = await elementsParser.$getFederationUtxos();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 30).toUTCString());
       res.json(federationUtxos);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -143,6 +167,9 @@ class LiquidRoutes {
   private async $getFederationUtxosOneMonthAgo(req: Request, res: Response) {
     try {
       const federationUtxos = await elementsParser.$getFederationUtxosOneMonthAgo();
+      res.header('Pragma', 'public');
+      res.header('Cache-control', 'public');
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60 * 24).toUTCString());
       res.json(federationUtxos);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);

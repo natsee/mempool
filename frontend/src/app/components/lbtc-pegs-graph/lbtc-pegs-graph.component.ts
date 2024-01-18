@@ -17,8 +17,7 @@ import { EChartsOption } from '../../graphs/echarts';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LbtcPegsGraphComponent implements OnInit, OnChanges {
-  @Input() pegData: any;
-  @Input() reservesData: any;
+  @Input() data: any;
   pegsChartOptions: EChartsOption;
 
   height: number | string = '200';
@@ -42,18 +41,18 @@ export class LbtcPegsGraphComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges() {
-    if (!this.pegData) {
+    if (!this.data?.liquidPegs) {
       return;
     }
-    if (!this.reservesData || this.reservesData.labels[-1] !== this.pegData.labels[-1]) {
-      this.pegsChartOptions = this.createChartOptions(this.pegData.series, this.pegData.labels);
+    if (!this.data.liquidReserves || this.data.liquidReserves?.series.length !== this.data.liquidPegs.series.length) {
+      this.pegsChartOptions = this.createChartOptions(this.data.liquidPegs.series, this.data.liquidPegs.labels);
     } else {
-      this.pegsChartOptions = this.createChartOptions(this.pegData.series, this.pegData.labels, this.reservesData.series);
+      this.pegsChartOptions = this.createChartOptions(this.data.liquidPegs.series, this.data.liquidPegs.labels, this.data.liquidReserves.series);
     }
   }
 
   rendered() {
-    if (!this.pegData) {
+    if (!this.data.liquidPegs) {
       return;
     }
     this.isLoading = false;

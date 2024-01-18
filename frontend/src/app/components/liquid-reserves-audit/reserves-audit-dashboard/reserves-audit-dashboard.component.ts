@@ -36,84 +36,50 @@ export class ReservesAuditDashboardComponent implements OnInit {
 
     this.auditStatus$ = concat(
       this.apiService.federationAuditSynced$(),
-      this.stateService.blocks$
-        .pipe(
-          delay(2000),
-          switchMap(() => this.apiService.federationAuditSynced$())
-        )
-    );
-
-    this.currentReserves$ = this.auditStatus$
-      .pipe(
-        filter(auditStatus => auditStatus.isAuditSynced === true),
-        switchMap(_ =>
-          concat(
-            this.apiService.liquidReserves$()
-              .pipe(
-                tap((currentReserves) => this.lastReservesBlockUpdate = currentReserves.lastBlockUpdate)
-              ),
-            this.stateService.blocks$
-              .pipe(
-                delay(1000),
-                switchMap(_ => this.apiService.liquidReserves$()),
-                filter((currentReserves) => currentReserves.lastBlockUpdate > this.lastReservesBlockUpdate)
-              )
-          )),
-        map((currentReserves) => {
-          this.lastReservesBlockUpdate = currentReserves.lastBlockUpdate
-          return currentReserves;
-        }),
-        share(),
-      );
-
-    this.currentPeg$ = concat(
-      this.apiService.liquidPegs$()
-        .pipe(
-          tap((currentPeg) => this.lastPegBlockUpdate = currentPeg.lastBlockUpdate)
-        ),
       this.stateService.blocks$.pipe(
-        delay(1000),
-        switchMap((_) => this.apiService.liquidPegs$()),
-        filter((currentPeg) => currentPeg.lastBlockUpdate > this.lastPegBlockUpdate)
+        delay(2000),
+        switchMap(() => this.apiService.federationAuditSynced$()),
+        share()
       )
-    ).pipe(
-      map((currentPeg) => {
-        this.lastPegBlockUpdate = currentPeg.lastBlockUpdate;
-        return currentPeg;
-      }),
-      share(),
     );
 
-    this.federationUtxos$ = this.auditStatus$
-      .pipe(
-        filter(auditStatus => auditStatus.isAuditSynced === true),
-        switchMap(_ =>
-          concat(
-            this.apiService.federationUtxos$(),
-            this.stateService.blocks$
-              .pipe(
-                delay(1000),
-                switchMap(_ => this.apiService.federationUtxos$())
-              )
-          )),
-        share(),
-      );
-    
-    this.federationAddresses$ = this.auditStatus$
-      .pipe(
-        filter(auditStatus => auditStatus.isAuditSynced === true),
-        switchMap(_ =>
-          concat(
-            this.apiService.federationAddresses$(),
-            this.stateService.blocks$
-              .pipe(
-                delay(1000),
-                switchMap(_ => this.apiService.federationAddresses$())
-              )
-          )),
-        share(),
-      );
+    this.currentReserves$ = this.auditStatus$.pipe(
+      filter(auditStatus => auditStatus.isAuditSynced === true),
+      switchMap(_ =>
+        this.apiService.liquidReserves$().pipe(
+          filter((currentReserves) => currentReserves.lastBlockUpdate > this.lastReservesBlockUpdate),
+          tap((currentReserves) => {
+            this.lastReservesBlockUpdate = currentReserves.lastBlockUpdate;
+          })
+        )
+      ),
+      share()
+    );
 
+    this.currentPeg$ = this.auditStatus$.pipe(
+      filter(auditStatus => auditStatus.isAuditSynced === true),
+      switchMap(_ =>
+        this.apiService.liquidPegs$().pipe(
+          filter((currentPegs) => currentPegs.lastBlockUpdate > this.lastPegBlockUpdate),
+          tap((currentPegs) => {
+            this.lastPegBlockUpdate = currentPegs.lastBlockUpdate;
+          })
+        )
+      ),
+      share()
+    );
+
+    this.federationUtxos$ = this.auditStatus$.pipe(
+      filter(auditStatus => auditStatus.isAuditSynced === true),
+      switchMap(_ => this.apiService.federationUtxos$()),
+      share()
+    );
+
+    this.federationAddresses$ = this.auditStatus$.pipe(
+      filter(auditStatus => auditStatus.isAuditSynced === true),
+      switchMap(_ => this.apiService.federationAddresses$()),
+      share()
+    );
   }
 
 }
