@@ -18,6 +18,7 @@ import { AssetsNavComponent } from '../components/assets/assets-nav/assets-nav.c
 import { ReservesAuditDashboardComponent } from '../components/liquid-reserves-audit/reserves-audit-dashboard/reserves-audit-dashboard.component';
 import { ReservesSupplyStatsComponent } from '../components/liquid-reserves-audit/reserves-supply-stats/reserves-supply-stats.component';
 import { FederationUtxosStatsComponent } from '../components/liquid-reserves-audit/federation-utxos-stats/federation-utxos-stats.component';
+import { FederationUtxosListComponent } from '../components/liquid-reserves-audit/federation-utxos-list/federation-utxos-list.component';
 import { ReservesRatioComponent } from '../components/liquid-reserves-audit/reserves-ratio/reserves-ratio.component';
 
 const routes: Routes = [
@@ -81,6 +82,10 @@ const routes: Routes = [
             component: ReservesAuditDashboardComponent,
           }
         ]
+      },
+      {
+        path: 'audit/utxos',
+        component: FederationUtxosListComponent,
       },
       {
         path: 'assets',
@@ -150,6 +155,7 @@ export class LiquidRoutingModule { }
     ReservesAuditDashboardComponent,
     ReservesSupplyStatsComponent,
     FederationUtxosStatsComponent,
+    FederationUtxosListComponent,
     ReservesRatioComponent,
   ]
 })

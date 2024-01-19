@@ -253,7 +253,7 @@
       </ng-container>
     </div>
     <div class="item">
-      <a class="title-link" href="" [routerLink]="['/audit' | relativeUrl]">
+      <a class="title-link" [routerLink]="['/audit' | relativeUrl]">
         <h5 class="card-title" i18n="dashboard.btc-reserves">BTC Reserves <fa-icon [icon]="['fas', 'external-link-alt']" [fixedWidth]="true" style="font-size: 13px; color: #4a68b9"></fa-icon></h5>
       </a>
       <ng-container *ngIf="(currentReserves$ | async) as currentReserves; else loadingTransactions">

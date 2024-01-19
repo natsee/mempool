@@ -21,7 +21,7 @@
       <div class="card">
         <div class="card-body">
           <app-federation-utxos-stats [federationUtxos$]="federationUtxos$" [federationAddresses$]="federationAddresses$"></app-federation-utxos-stats>
-          <!-- The UTXO table -->
+          <app-federation-utxos-list [federationUtxos$]="federationUtxos$" [widget]="true"></app-federation-utxos-list>
         </div>
       </div>
     </div>
