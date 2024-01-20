@@ -563,6 +563,7 @@ class DatabaseMigration {
       // Drop and re-create the elements_pegs table
       await this.$executeQuery('DROP table IF EXISTS elements_pegs;');
       await this.$executeQuery(this.getCreateElementsTableQuery(), await this.$checkIfTableExists('elements_pegs'));
+      await this.$executeQuery(`UPDATE state SET number = 0 WHERE name = 'last_elements_block';`);
       // Create the federation_addresses table and add the two Liquid Federation change addresses in
       await this.$executeQuery(this.getCreateFederationAddressesTableQuery(), await this.$checkIfTableExists('federation_addresses'));
       await this.$executeQuery(`INSERT INTO federation_addresses (bitcoinaddress) VALUES ('bc1qxvay4an52gcghxq5lavact7r6qe9l4laedsazz8fj2ee2cy47tlqff4aj4')`); // Federation change address
