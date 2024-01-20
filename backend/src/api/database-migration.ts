@@ -560,9 +560,13 @@ class DatabaseMigration {
     }
 
     if (databaseSchemaVersion < 67 && config.MEMPOOL.NETWORK === "liquid") {
+      // Add primary key on (txid, txindex) to elements_pegs table
+      await this.$executeQuery('ALTER TABLE `elements_pegs` ADD PRIMARY KEY (txid, txindex)');
+      // Create the federation_addresses table and add the two Liquid Federation change addresses in
       await this.$executeQuery(this.getCreateFederationAddressesTableQuery(), await this.$checkIfTableExists('federation_addresses'));
       await this.$executeQuery(`INSERT INTO federation_addresses (bitcoinaddress) VALUES ('bc1qxvay4an52gcghxq5lavact7r6qe9l4laedsazz8fj2ee2cy47tlqff4aj4')`); // Federation change address
       await this.$executeQuery(`INSERT INTO federation_addresses (bitcoinaddress) VALUES ('3EiAcrzq1cELXScc98KeCswGWZaPGceT1d')`); // Federation change address
+      // Create the federation_txos table that uses the federation_addresses table as a foreign key
       await this.$executeQuery(this.getCreateFederationTxosTableQuery(), await this.$checkIfTableExists('federation_txos'));
       await this.$executeQuery(`INSERT INTO state VALUES('last_bitcoin_block_audit', 0, NULL);`);
       await this.updateToSchemaVersion(67);
@@ -810,8 +814,7 @@ class DatabaseMigration {
       bitcoinaddress varchar(100) NOT NULL,
       bitcointxid varchar(65) NOT NULL,
       bitcoinindex int(11) NOT NULL,
-      final_tx int(11) NOT NULL,
-      PRIMARY KEY (txid, txindex)
+      final_tx int(11) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8;`;
   }
 
