@@ -288,7 +288,7 @@ export class DashboardComponent implements OnInit, OnDestroy, AfterViewInit {
         share()
       );
 
-      this.fullHistory$ = combineLatest([this.liquidPegsMonth$, this.currentPeg$, this.liquidReservesMonth$, this.currentReserves$])
+      this.fullHistory$ = combineLatest([this.liquidPegsMonth$, this.currentPeg$, this.liquidReservesMonth$.pipe(startWith(null)), this.currentReserves$.pipe(startWith(null))])
         .pipe(
           map(([liquidPegs, currentPeg, liquidReserves, currentReserves]) => {
             liquidPegs.series[liquidPegs.series.length - 1] = parseFloat(currentPeg.amount) / 100000000;
