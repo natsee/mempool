@@ -73,7 +73,7 @@ class LiquidRoutes {
       const pegs = await elementsParser.$getPegDataByMonth();
       res.header('Pragma', 'public');
       res.header('Cache-control', 'public');
-      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60 * 24).toUTCString());
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60).toUTCString());
       res.json(pegs);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
@@ -85,7 +85,7 @@ class LiquidRoutes {
       const reserves = await elementsParser.$getFederationReservesByMonth();
       res.header('Pragma', 'public');
       res.header('Cache-control', 'public');
-      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60 * 24).toUTCString());
+      res.setHeader('Expires', new Date(Date.now() + 1000 * 60 * 60).toUTCString());
       res.json(reserves);
     } catch (e) {
       res.status(500).send(e instanceof Error ? e.message : e);
